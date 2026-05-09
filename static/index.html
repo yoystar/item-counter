@@ -158,7 +158,297 @@
 </div>
 
 <script>
-// JS 逻辑将在后续 Task 中追加到此处
+// ── 全局状态 ──────────────────────────────────────────────
+const state = {
+  labels: [],           // [{id, fabricGroup, x, y, number}] x/y 为原图坐标
+  nextId: 1,
+  imageScale: 1,        // Canvas显示尺寸 / 原图尺寸
+  imagePath: null,      // 服务端路径，用于 /detect 和 /export
+  imageWidth: 0,        // 原图宽度（像素）
+  imageHeight: 0,
+  manualMode: false,
+};
+
+// ── Fabric Canvas 初始化 ───────────────────────────────────
+const canvas = new fabric.Canvas('main-canvas', {
+  selection: false,
+});
+
+// ── 图片上传 ──────────────────────────────────────────────
+document.getElementById('file-input').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const resp = await fetch('/upload', { method: 'POST', body: formData });
+  if (!resp.ok) {
+    alert('上传失败：' + (await resp.json()).error);
+    return;
+  }
+  const data = await resp.json();
+  loadImageToCanvas(data.image_url, data.image_path, data.width, data.height);
+});
+
+function loadImageToCanvas(imageUrl, imagePath, origW, origH) {
+  canvas.clear();
+  state.labels = [];
+  state.nextId = 1;
+  state.imagePath = imagePath;
+  state.imageWidth = origW;
+  state.imageHeight = origH;
+  renderLabelList();
+  updateValidation();
+
+  const container = document.getElementById('canvas-container');
+  const maxW = container.clientWidth - 16;
+  const maxH = container.clientHeight - 16;
+  const scale = Math.min(maxW / origW, maxH / origH, 1);
+  state.imageScale = scale;
+
+  const dispW = Math.round(origW * scale);
+  const dispH = Math.round(origH * scale);
+  canvas.setWidth(dispW);
+  canvas.setHeight(dispH);
+
+  document.getElementById('drop-hint').style.display = 'none';
+
+  fabric.Image.fromURL(imageUrl, (img) => {
+    img.set({ scaleX: scale, scaleY: scale, selectable: false, evented: false, left: 0, top: 0 });
+    canvas.add(img);
+    canvas.sendToBack(img);
+    canvas.renderAll();
+  });
+
+  document.getElementById('btn-detect').disabled = false;
+  document.getElementById('toggle-manual').disabled = false;
+  document.getElementById('btn-clear').disabled = false;
+  document.getElementById('btn-export').disabled = false;
+}
+
+// ── 标注圆形半径（自适应原图尺寸）────────────────────────
+function getLabelRadius() {
+  const shortSide = Math.min(state.imageWidth, state.imageHeight);
+  return Math.max(14, Math.min(Math.round(shortSide / 40), 28));
+}
+
+// ── 在 Canvas 坐标处创建标注 ──────────────────────────────
+function addLabel(canvasX, canvasY) {
+  const r = getLabelRadius() * state.imageScale;
+  const number = state.labels.length + 1;
+
+  const circle = new fabric.Circle({
+    radius: r, fill: '#E74C3C', originX: 'center', originY: 'center',
+  });
+  const text = new fabric.Text(String(number), {
+    fontSize: Math.max(10, r * 1.1),
+    fill: '#FFFFFF', fontWeight: 'bold',
+    originX: 'center', originY: 'center',
+  });
+  const group = new fabric.Group([circle, text], {
+    left: canvasX, top: canvasY,
+    originX: 'center', originY: 'center',
+    selectable: false, evented: false,
+  });
+
+  canvas.add(group);
+  canvas.bringToFront(group);
+
+  state.labels.push({
+    id: state.nextId++,
+    fabricGroup: group,
+    x: Math.round(canvasX / state.imageScale),
+    y: Math.round(canvasY / state.imageScale),
+    number,
+  });
+
+  renderLabelList();
+  updateValidation();
+  canvas.renderAll();
+}
+
+// ── 删除指定 id 的标注 ────────────────────────────────────
+function removeLabel(id) {
+  const idx = state.labels.findIndex(l => l.id === id);
+  if (idx === -1) return;
+  canvas.remove(state.labels[idx].fabricGroup);
+  state.labels.splice(idx, 1);
+  renumberLabels();
+  renderLabelList();
+  updateValidation();
+  canvas.renderAll();
+}
+
+// ── 清除全部标注 ──────────────────────────────────────────
+document.getElementById('btn-clear').addEventListener('click', () => {
+  state.labels.forEach(l => canvas.remove(l.fabricGroup));
+  state.labels = [];
+  state.nextId = 1;
+  renderLabelList();
+  updateValidation();
+  canvas.renderAll();
+});
+
+// ── 重新编号（删除后保证 1..N 连续）──────────────────────
+function renumberLabels() {
+  state.labels.forEach((label, i) => {
+    label.number = i + 1;
+    const objs = label.fabricGroup.getObjects();
+    const textObj = objs.find(o => o.type === 'text');
+    if (textObj) {
+      textObj.set('text', String(i + 1));
+      label.fabricGroup.addWithUpdate();
+    }
+  });
+}
+
+// ── 渲染右侧标注列表 ──────────────────────────────────────
+function renderLabelList() {
+  const list = document.getElementById('label-list');
+  list.innerHTML = '';
+  state.labels.forEach(label => {
+    const item = document.createElement('div');
+    item.className = 'label-item';
+    item.innerHTML = `
+      <div class="label-badge">${label.number}</div>
+      <span class="label-coords">(${label.x}, ${label.y})</span>
+      <button class="label-delete" onclick="removeLabel(${label.id})">×</button>
+    `;
+    list.appendChild(item);
+  });
+}
+
+// ── 校验编号连续性 ────────────────────────────────────────
+function updateValidation() {
+  const el = document.getElementById('validation-status');
+  const countEl = document.getElementById('label-count');
+  const n = state.labels.length;
+  countEl.textContent = n;
+
+  if (n === 0) {
+    el.textContent = '尚未标注';
+    el.className = '';
+    return;
+  }
+
+  const nums = state.labels.map(l => l.number).sort((a, b) => a - b);
+  const ok = nums.every((v, i) => v === i + 1);
+  if (ok) {
+    el.textContent = `✅ 编号正常，共 ${n} 个物品`;
+    el.className = '';
+  } else {
+    el.textContent = `⚠️ 编号异常，请检查`;
+    el.className = 'error';
+  }
+}
+
+// ── 模式1：自动识别 ───────────────────────────────────────
+document.getElementById('btn-detect').addEventListener('click', async () => {
+  if (!state.imagePath) return;
+
+  const btn = document.getElementById('btn-detect');
+  btn.disabled = true;
+  btn.textContent = '🔍 识别中...';
+
+  try {
+    const resp = await fetch('/detect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image_path: state.imagePath }),
+    });
+    const data = await resp.json();
+
+    if (!resp.ok) {
+      alert('识别失败：' + data.error);
+      return;
+    }
+
+    state.labels.forEach(l => canvas.remove(l.fabricGroup));
+    state.labels = [];
+    state.nextId = 1;
+
+    if (data.items.length === 0) {
+      alert('未检测到物品，请切换手动模式进行标注');
+    } else {
+      data.items.forEach(item => {
+        const cx = (item.x + item.w / 2) * state.imageScale;
+        const cy = (item.y + item.h / 2) * state.imageScale;
+        addLabel(cx, cy);
+      });
+    }
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔍 自动识别';
+  }
+});
+
+// ── 模式2：手动点击 ───────────────────────────────────────
+document.getElementById('toggle-manual').addEventListener('change', (e) => {
+  state.manualMode = e.target.checked;
+  canvas.defaultCursor = state.manualMode ? 'crosshair' : 'default';
+});
+
+canvas.on('mouse:down', (opt) => {
+  if (!state.manualMode) return;
+  if (!state.imagePath) return;
+
+  const pointer = canvas.getPointer(opt.e);
+  const x = pointer.x;
+  const y = pointer.y;
+
+  const imgW = state.imageWidth * state.imageScale;
+  const imgH = state.imageHeight * state.imageScale;
+  if (x < 0 || y < 0 || x > imgW || y > imgH) return;
+
+  const target = canvas.findTarget(opt.e);
+  if (target && target.type === 'group') return;
+
+  addLabel(x, y);
+});
+
+// ── 导出图片 ──────────────────────────────────────────────
+document.getElementById('btn-export').addEventListener('click', async () => {
+  if (state.labels.length === 0) {
+    alert('请先添加标注再导出');
+    return;
+  }
+
+  const btn = document.getElementById('btn-export');
+  btn.disabled = true;
+  btn.textContent = '💾 导出中...';
+
+  try {
+    const labels = state.labels.map(l => ({
+      x: l.x,
+      y: l.y,
+      number: l.number,
+    }));
+
+    const resp = await fetch('/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image_path: state.imagePath, labels }),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json();
+      alert('导出失败：' + err.error);
+      return;
+    }
+
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'annotated.png';
+    a.click();
+    URL.revokeObjectURL(url);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '💾 导出图片';
+  }
+});
 </script>
 </body>
 </html>
