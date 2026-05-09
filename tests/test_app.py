@@ -71,3 +71,16 @@ def test_upload_response_includes_image_path(client, test_image_3_items):
         resp = client.post('/upload', data=data, content_type='multipart/form-data')
     body = resp.get_json()
     assert 'image_path' in body
+
+
+def test_detect_rejects_path_traversal(client):
+    resp = client.post('/detect', json={'image_path': '/etc/passwd'})
+    assert resp.status_code == 400
+
+
+def test_export_rejects_path_traversal(client, test_image_3_items):
+    resp = client.post('/export', json={
+        'image_path': '/etc/passwd',
+        'labels': [{"x": 80, "y": 80, "number": 1}]
+    })
+    assert resp.status_code == 400

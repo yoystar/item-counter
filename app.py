@@ -17,6 +17,12 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
+def is_safe_path(image_path: str) -> bool:
+    abs_upload = os.path.abspath(UPLOAD_FOLDER)
+    abs_image = os.path.abspath(image_path)
+    return abs_image.startswith(abs_upload + os.sep)
+
+
 @app.route('/')
 def index():
     return send_from_directory('static', 'index.html')
@@ -61,6 +67,9 @@ def detect():
     min_area = data.get('min_area', 500)
     max_area = data.get('max_area', None)
 
+    if not is_safe_path(image_path):
+        return jsonify({'error': 'Invalid image path'}), 400
+
     try:
         items = detect_items(image_path, min_area=min_area, max_area=max_area)
     except ValueError as e:
@@ -80,6 +89,9 @@ def export():
     if not labels:
         return jsonify({'error': 'No labels provided'}), 400
 
+    if not is_safe_path(image_path):
+        return jsonify({'error': 'Invalid image path'}), 400
+
     try:
         img = Image.open(image_path).convert('RGBA')
     except Exception:
@@ -96,10 +108,14 @@ def export():
     try:
         font = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', font_size)
     except Exception:
+        import warnings
+        warnings.warn('DejaVuSans-Bold.ttf not found, using default font (quality may degrade)')
         font = ImageFont.load_default()
 
     for label in labels:
         x, y, number = int(label['x']), int(label['y']), label['number']
+        if not (0 <= x < w and 0 <= y < h):
+            continue
         draw.ellipse(
             [(x - radius, y - radius), (x + radius, y + radius)],
             fill=(231, 76, 60, 230)
