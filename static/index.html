@@ -136,6 +136,27 @@
 
   <button class="btn btn-success" id="btn-detect" disabled>🔍 自动识别</button>
 
+  <details id="detect-params" style="font-size:13px;color:#ccc;">
+    <summary style="cursor:pointer;user-select:none;color:#a0c4ff;margin-bottom:6px;">⚙️ 识别参数</summary>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <div>
+        <div style="display:flex;justify-content:space-between;"><label>区块大小</label><b id="val-block-size">51</b></div>
+        <input type="range" id="slider-block-size" min="11" max="201" step="2" value="51" style="width:100%">
+        <div style="font-size:11px;color:#777;">值越大对背景纹理越不敏感</div>
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;"><label>阈值偏移 C</label><b id="val-c-value">10</b></div>
+        <input type="range" id="slider-c-value" min="1" max="30" step="1" value="10" style="width:100%">
+        <div style="font-size:11px;color:#777;">值越大消除的弱边缘越多</div>
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;"><label>形态学降噪</label><b id="val-morph">1</b></div>
+        <input type="range" id="slider-morph" min="0" max="5" step="1" value="1" style="width:100%">
+        <div style="font-size:11px;color:#777;">开运算去除小噪点（0=关闭）</div>
+      </div>
+    </div>
+  </details>
+
   <div class="toggle-row">
     <span>✏️ 手动模式</span>
     <label class="toggle">
@@ -344,6 +365,13 @@ function updateValidation() {
   }
 }
 
+// ── 识别参数滑块联动 ─────────────────────────────────────
+['block-size', 'c-value', 'morph'].forEach(name => {
+  const slider = document.getElementById(`slider-${name}`);
+  const display = document.getElementById(`val-${name}`);
+  slider.addEventListener('input', () => { display.textContent = slider.value; });
+});
+
 // ── 模式1：自动识别 ───────────────────────────────────────
 document.getElementById('btn-detect').addEventListener('click', async () => {
   if (!state.imagePath) return;
@@ -352,11 +380,20 @@ document.getElementById('btn-detect').addEventListener('click', async () => {
   btn.disabled = true;
   btn.textContent = '🔍 识别中...';
 
+  const blockSize = parseInt(document.getElementById('slider-block-size').value, 10);
+  const cValue = parseInt(document.getElementById('slider-c-value').value, 10);
+  const morph = parseInt(document.getElementById('slider-morph').value, 10);
+
   try {
     const resp = await fetch('/detect', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image_path: state.imagePath }),
+      body: JSON.stringify({
+        image_path: state.imagePath,
+        block_size: blockSize,
+        c_value: cValue,
+        morph_iterations: morph,
+      }),
     });
     const data = await resp.json();
 

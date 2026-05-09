@@ -84,3 +84,15 @@ def test_export_rejects_path_traversal(client, test_image_3_items):
         'labels': [{"x": 80, "y": 80, "number": 1}]
     })
     assert resp.status_code == 400
+
+
+def test_detect_accepts_new_params(client, test_image_3_items):
+    resp = client.post('/detect', json={
+        'image_path': test_image_3_items,
+        'block_size': 51,
+        'c_value': 10,
+        'morph_iterations': 2,
+    })
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert 'items' in body

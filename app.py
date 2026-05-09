@@ -66,12 +66,22 @@ def detect():
     image_path = data.get('image_path', '')
     min_area = data.get('min_area', 500)
     max_area = data.get('max_area', None)
+    block_size = data.get('block_size', 11)
+    c_value = data.get('c_value', 2)
+    morph_iterations = data.get('morph_iterations', 0)
 
     if not is_safe_path(image_path):
         return jsonify({'error': 'Invalid image path'}), 400
 
     try:
-        items = detect_items(image_path, min_area=min_area, max_area=max_area)
+        items = detect_items(
+            image_path,
+            min_area=min_area,
+            max_area=max_area,
+            block_size=block_size,
+            c_value=c_value,
+            morph_iterations=morph_iterations,
+        )
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
 
