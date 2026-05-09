@@ -47,6 +47,8 @@
     .btn-success { background: #27ae60; color: white; }
     .btn-danger  { background: #e74c3c; color: white; }
     .btn-secondary { background: #34495e; color: white; }
+    .btn-warning { background: #e67e22; color: white; }
+    .btn-warning.active { background: #f39c12; outline: 2px solid #f39c12; }
     .btn:not(:disabled):hover { opacity: 0.85; }
 
     .toggle-row {
@@ -157,6 +159,21 @@
     </div>
   </details>
 
+  <button class="btn btn-warning" id="btn-select" disabled>🎯 框选识别</button>
+
+  <div id="select-confirm" style="display:none;font-size:13px;color:#ccc;padding:8px;background:#1a1a0a;border-radius:6px;border:1px solid #f39c12;">
+    <div style="color:#f39c12;font-weight:bold;margin-bottom:6px;">拖拽框选目标后调整阈值</div>
+    <div>
+      <div style="display:flex;justify-content:space-between;"><label>相似度阈值</label><b id="val-threshold">0.70</b></div>
+      <input type="range" id="slider-threshold" min="0.3" max="0.95" step="0.05" value="0.70" style="width:100%">
+      <div style="font-size:11px;color:#777;">降低阈值可找到更多匹配，但误检会增加</div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px;">
+      <button class="btn btn-success" id="btn-match" disabled style="flex:1;padding:6px;">✅ 确认识别</button>
+      <button class="btn btn-secondary" id="btn-cancel-select" style="flex:1;padding:6px;">❌ 取消</button>
+    </div>
+  </div>
+
   <div class="toggle-row">
     <span>✏️ 手动模式</span>
     <label class="toggle">
@@ -188,6 +205,10 @@ const state = {
   imageWidth: 0,        // 原图宽度（像素）
   imageHeight: 0,
   manualMode: false,
+  selectMode: false,    // 框选识别模式
+  drawing: false,       // 正在拖拽绘制中
+  drawStart: null,      // {x, y} Canvas 坐标
+  tmpRect: null,        // 临时选框 fabric.Rect
 };
 
 // ── Fabric Canvas 初始化 ───────────────────────────────────
@@ -243,6 +264,7 @@ function loadImageToCanvas(imageUrl, imagePath, origW, origH) {
     canvas.renderAll();
 
     document.getElementById('btn-detect').disabled = false;
+    document.getElementById('btn-select').disabled = false;
     document.getElementById('toggle-manual').disabled = false;
     document.getElementById('btn-clear').disabled = false;
     document.getElementById('btn-export').disabled = false;
@@ -428,21 +450,148 @@ document.getElementById('toggle-manual').addEventListener('change', (e) => {
 });
 
 canvas.on('mouse:down', (opt) => {
-  if (!state.manualMode) return;
-  if (!state.imagePath) return;
-
   const pointer = canvas.getPointer(opt.e);
   const x = pointer.x;
   const y = pointer.y;
-
   const imgW = state.imageWidth * state.imageScale;
   const imgH = state.imageHeight * state.imageScale;
-  if (x < 0 || y < 0 || x > imgW || y > imgH) return;
 
+  if (state.selectMode) {
+    if (x < 0 || y < 0 || x > imgW || y > imgH) return;
+    if (state.tmpRect) { canvas.remove(state.tmpRect); state.tmpRect = null; }
+    state.drawing = true;
+    state.drawStart = { x, y };
+    state.tmpRect = new fabric.Rect({
+      left: x, top: y, width: 0, height: 0,
+      stroke: '#f39c12', strokeWidth: 2,
+      strokeDashArray: [6, 4],
+      fill: 'rgba(243,156,18,0.12)',
+      selectable: false, evented: false,
+    });
+    canvas.add(state.tmpRect);
+    document.getElementById('btn-match').disabled = true;
+    return;
+  }
+
+  if (!state.manualMode) return;
+  if (!state.imagePath) return;
+  if (x < 0 || y < 0 || x > imgW || y > imgH) return;
   const target = canvas.findTarget(opt.e);
   if (target && target.type === 'group') return;
-
   addLabel(x, y);
+});
+
+canvas.on('mouse:move', (opt) => {
+  if (!state.drawing || !state.selectMode) return;
+  const p = canvas.getPointer(opt.e);
+  const rx = Math.min(p.x, state.drawStart.x);
+  const ry = Math.min(p.y, state.drawStart.y);
+  const rw = Math.abs(p.x - state.drawStart.x);
+  const rh = Math.abs(p.y - state.drawStart.y);
+  state.tmpRect.set({ left: rx, top: ry, width: rw, height: rh });
+  canvas.renderAll();
+});
+
+canvas.on('mouse:up', (opt) => {
+  if (!state.drawing || !state.selectMode) return;
+  state.drawing = false;
+  const rw = state.tmpRect.width;
+  const rh = state.tmpRect.height;
+  if (rw < 10 || rh < 10) {
+    canvas.remove(state.tmpRect);
+    state.tmpRect = null;
+    canvas.renderAll();
+    return;
+  }
+  document.getElementById('btn-match').disabled = false;
+  canvas.renderAll();
+});
+
+// ── 框选识别模式 ──────────────────────────────────────────
+function cancelSelectMode() {
+  state.selectMode = false;
+  state.drawing = false;
+  state.drawStart = null;
+  if (state.tmpRect) { canvas.remove(state.tmpRect); state.tmpRect = null; }
+  canvas.defaultCursor = 'default';
+  canvas.renderAll();
+  document.getElementById('btn-select').textContent = '🎯 框选识别';
+  document.getElementById('btn-select').classList.remove('active');
+  document.getElementById('select-confirm').style.display = 'none';
+  document.getElementById('btn-match').disabled = true;
+}
+
+document.getElementById('btn-select').addEventListener('click', () => {
+  if (state.selectMode) {
+    cancelSelectMode();
+    return;
+  }
+  // 互斥：关闭手动模式
+  if (state.manualMode) {
+    document.getElementById('toggle-manual').checked = false;
+    state.manualMode = false;
+    canvas.defaultCursor = 'default';
+  }
+  state.selectMode = true;
+  canvas.defaultCursor = 'crosshair';
+  document.getElementById('btn-select').textContent = '🎯 框选中（点击取消）';
+  document.getElementById('btn-select').classList.add('active');
+  document.getElementById('select-confirm').style.display = 'block';
+});
+
+document.getElementById('slider-threshold').addEventListener('input', (e) => {
+  document.getElementById('val-threshold').textContent = parseFloat(e.target.value).toFixed(2);
+});
+
+document.getElementById('btn-cancel-select').addEventListener('click', cancelSelectMode);
+
+document.getElementById('btn-match').addEventListener('click', async () => {
+  if (!state.tmpRect || !state.imagePath) return;
+
+  const scale = state.imageScale;
+  const templateBox = {
+    x: Math.round(state.tmpRect.left / scale),
+    y: Math.round(state.tmpRect.top / scale),
+    w: Math.round(state.tmpRect.width / scale),
+    h: Math.round(state.tmpRect.height / scale),
+  };
+  const threshold = parseFloat(document.getElementById('slider-threshold').value);
+
+  const btn = document.getElementById('btn-match');
+  btn.disabled = true;
+  btn.textContent = '🔍 识别中...';
+
+  try {
+    const resp = await fetch('/match', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image_path: state.imagePath, template_box: templateBox, threshold }),
+    });
+    const data = await resp.json();
+
+    cancelSelectMode();
+
+    if (!resp.ok) {
+      alert('识别失败：' + data.error);
+      return;
+    }
+
+    state.labels.forEach(l => canvas.remove(l.fabricGroup));
+    state.labels = [];
+    state.nextId = 1;
+
+    if (data.items.length === 0) {
+      alert('未找到相似物品，请降低阈值或重新框选');
+    } else {
+      data.items.forEach(item => {
+        const cx = (item.x + item.w / 2) * state.imageScale;
+        const cy = (item.y + item.h / 2) * state.imageScale;
+        addLabel(cx, cy);
+      });
+    }
+  } finally {
+    btn.textContent = '✅ 确认识别';
+  }
 });
 
 // ── 导出图片 ──────────────────────────────────────────────

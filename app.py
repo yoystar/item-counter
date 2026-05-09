@@ -5,7 +5,7 @@ from flask import Flask, request, jsonify, send_from_directory
 from PIL import Image, ImageDraw, ImageFont
 import io
 
-from detector import detect_items
+from detector import detect_items, match_template_items
 
 app = Flask(__name__, static_folder='static', static_url_path='')
 
@@ -82,6 +82,29 @@ def detect():
             c_value=c_value,
             morph_iterations=morph_iterations,
         )
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+
+    return jsonify({'items': items})
+
+
+@app.route('/match', methods=['POST'])
+def match():
+    data = request.get_json()
+    if data is None:
+        return jsonify({'error': 'JSON body required'}), 400
+    image_path = data.get('image_path', '')
+    template_box = data.get('template_box', {})
+    threshold = float(data.get('threshold', 0.7))
+
+    if not is_safe_path(image_path):
+        return jsonify({'error': 'Invalid image path'}), 400
+
+    if not template_box or not all(k in template_box for k in ('x', 'y', 'w', 'h')):
+        return jsonify({'error': 'Invalid template_box'}), 400
+
+    try:
+        items = match_template_items(image_path, template_box, threshold=threshold)
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
 

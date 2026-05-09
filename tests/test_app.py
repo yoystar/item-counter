@@ -96,3 +96,29 @@ def test_detect_accepts_new_params(client, test_image_3_items):
     assert resp.status_code == 200
     body = resp.get_json()
     assert 'items' in body
+
+
+def test_match_returns_items(client, test_image_3_items):
+    # 框选包含 5px 背景边距，与真实用法一致，避免零方差模板问题
+    resp = client.post('/match', json={
+        'image_path': test_image_3_items,
+        'template_box': {'x': 45, 'y': 45, 'w': 70, 'h': 70},
+        'threshold': 0.9,
+    })
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert 'items' in body
+    assert len(body['items']) == 3
+
+
+def test_match_rejects_path_traversal(client):
+    resp = client.post('/match', json={
+        'image_path': '/etc/passwd',
+        'template_box': {'x': 0, 'y': 0, 'w': 60, 'h': 60},
+    })
+    assert resp.status_code == 400
+
+
+def test_match_rejects_missing_template_box(client, test_image_3_items):
+    resp = client.post('/match', json={'image_path': test_image_3_items})
+    assert resp.status_code == 400
