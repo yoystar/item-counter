@@ -293,7 +293,10 @@ function addLabel(canvasX, canvasY) {
   const group = new fabric.Group([circle, text], {
     left: canvasX, top: canvasY,
     originX: 'center', originY: 'center',
-    selectable: false, evented: true,
+    selectable: true, evented: true,
+    hasControls: false, hasBorders: false,
+    lockScalingX: true, lockScalingY: true, lockRotation: true,
+    hoverCursor: 'grab',
   });
 
   canvas.add(group);
@@ -449,7 +452,33 @@ document.getElementById('toggle-manual').addEventListener('change', (e) => {
   canvas.defaultCursor = state.manualMode ? 'crosshair' : 'default';
 });
 
+// ── 点击 vs 拖拽区分 ─────────────────────────────────────
+let _didDrag = false;
+let _mouseDownTarget = null;
+
+function setLabelsSelectable(on) {
+  state.labels.forEach(l => l.fabricGroup.set({ selectable: on }));
+  canvas.renderAll();
+}
+
+canvas.on('object:moving', () => { _didDrag = true; });
+
+canvas.on('object:modified', (opt) => {
+  const obj = opt.target;
+  if (!obj || obj.type !== 'group') return;
+  const label = state.labels.find(l => l.fabricGroup === obj);
+  if (!label) return;
+  label.x = Math.round(obj.left / state.imageScale);
+  label.y = Math.round(obj.top / state.imageScale);
+  canvas.discardActiveObject();
+  renderLabelList();
+  canvas.renderAll();
+});
+
 canvas.on('mouse:down', (opt) => {
+  _didDrag = false;
+  _mouseDownTarget = (opt.target && opt.target.type === 'group') ? opt.target : null;
+
   const pointer = canvas.getPointer(opt.e);
   const x = pointer.x;
   const y = pointer.y;
@@ -473,11 +502,10 @@ canvas.on('mouse:down', (opt) => {
     return;
   }
 
-  if (!state.manualMode) return;
-  if (!state.imagePath) return;
+  // 手动模式：空白处点击新增标注
+  if (!state.manualMode || !state.imagePath) return;
   if (x < 0 || y < 0 || x > imgW || y > imgH) return;
-  const target = canvas.findTarget(opt.e);
-  if (target && target.type === 'group') return;
+  if (_mouseDownTarget) return;   // 点在已有标注上，不叠加新标注
   addLabel(x, y);
 });
 
@@ -493,18 +521,28 @@ canvas.on('mouse:move', (opt) => {
 });
 
 canvas.on('mouse:up', (opt) => {
-  if (!state.drawing || !state.selectMode) return;
-  state.drawing = false;
-  const rw = state.tmpRect.width;
-  const rh = state.tmpRect.height;
-  if (rw < 10 || rh < 10) {
-    canvas.remove(state.tmpRect);
-    state.tmpRect = null;
+  // 框选模式：完成矩形
+  if (state.drawing && state.selectMode) {
+    state.drawing = false;
+    const rw = state.tmpRect.width;
+    const rh = state.tmpRect.height;
+    if (rw < 10 || rh < 10) {
+      canvas.remove(state.tmpRect);
+      state.tmpRect = null;
+    } else {
+      document.getElementById('btn-match').disabled = false;
+    }
     canvas.renderAll();
+    _mouseDownTarget = null;
     return;
   }
-  document.getElementById('btn-match').disabled = false;
-  canvas.renderAll();
+
+  // 点击标注删除（未拖拽 + 按下和抬起是同一个标注）
+  if (!state.selectMode && !_didDrag && _mouseDownTarget && opt.target === _mouseDownTarget) {
+    const label = state.labels.find(l => l.fabricGroup === _mouseDownTarget);
+    if (label) removeLabel(label.id);
+  }
+  _mouseDownTarget = null;
 });
 
 // ── 框选识别模式 ──────────────────────────────────────────
@@ -514,6 +552,7 @@ function cancelSelectMode() {
   state.drawStart = null;
   if (state.tmpRect) { canvas.remove(state.tmpRect); state.tmpRect = null; }
   canvas.defaultCursor = 'default';
+  setLabelsSelectable(true);
   canvas.renderAll();
   document.getElementById('btn-select').textContent = '🎯 框选识别';
   document.getElementById('btn-select').classList.remove('active');
@@ -534,6 +573,7 @@ document.getElementById('btn-select').addEventListener('click', () => {
   }
   state.selectMode = true;
   canvas.defaultCursor = 'crosshair';
+  setLabelsSelectable(false);   // 框选期间禁止误拖标注
   document.getElementById('btn-select').textContent = '🎯 框选中（点击取消）';
   document.getElementById('btn-select').classList.add('active');
   document.getElementById('select-confirm').style.display = 'block';
