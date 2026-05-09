@@ -58,3 +58,16 @@ def test_export_empty_labels_rejected(client, test_image_3_items):
         'labels': []
     })
     assert resp.status_code == 400
+
+
+def test_detect_invalid_path_returns_400(client):
+    resp = client.post('/detect', json={'image_path': 'nonexistent.png'})
+    assert resp.status_code == 400
+
+
+def test_upload_response_includes_image_path(client, test_image_3_items):
+    with open(test_image_3_items, 'rb') as f:
+        data = {'file': (f, 'test.png')}
+        resp = client.post('/upload', data=data, content_type='multipart/form-data')
+    body = resp.get_json()
+    assert 'image_path' in body

@@ -55,6 +55,8 @@ def upload():
 @app.route('/detect', methods=['POST'])
 def detect():
     data = request.get_json()
+    if data is None:
+        return jsonify({'error': 'JSON body required'}), 400
     image_path = data.get('image_path', '')
     min_area = data.get('min_area', 500)
     max_area = data.get('max_area', None)
@@ -70,6 +72,8 @@ def detect():
 @app.route('/export', methods=['POST'])
 def export():
     data = request.get_json()
+    if data is None:
+        return jsonify({'error': 'JSON body required'}), 400
     image_path = data.get('image_path', '')
     labels = data.get('labels', [])
 
@@ -102,8 +106,7 @@ def export():
         )
         text = str(number)
         bbox = draw.textbbox((0, 0), text, font=font)
-        tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
-        draw.text((x - tw // 2, y - th // 2), text, fill=(255, 255, 255, 255), font=font)
+        draw.text((x - (bbox[0] + bbox[2]) // 2, y - (bbox[1] + bbox[3]) // 2), text, fill=(255, 255, 255, 255), font=font)
 
     result = Image.alpha_composite(img, overlay).convert('RGB')
     buf = io.BytesIO()
