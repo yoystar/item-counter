@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>物品计数标注工具</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { display: flex; height: 100vh; background: #1a1a2e; color: #e0e0e0; font-family: system-ui, sans-serif; overflow: hidden; }
+
+    #canvas-container {
+      flex: 2;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0f0f1a;
+      overflow: hidden;
+      position: relative;
+    }
+
+    #panel {
+      width: 280px;
+      flex-shrink: 0;
+      background: #16213e;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+      border-left: 1px solid #2a2a4a;
+    }
+
+    .panel-title { font-size: 18px; font-weight: bold; color: #a0c4ff; }
+
+    .btn {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: opacity 0.2s;
+    }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary { background: #4a90d9; color: white; }
+    .btn-success { background: #27ae60; color: white; }
+    .btn-danger  { background: #e74c3c; color: white; }
+    .btn-secondary { background: #34495e; color: white; }
+    .btn:not(:disabled):hover { opacity: 0.85; }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 14px;
+    }
+    .toggle {
+      position: relative; width: 44px; height: 24px;
+    }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; inset: 0;
+      background: #555; border-radius: 24px; cursor: pointer;
+      transition: background 0.2s;
+    }
+    .slider:before {
+      content: ''; position: absolute;
+      width: 18px; height: 18px; left: 3px; bottom: 3px;
+      background: white; border-radius: 50%;
+      transition: transform 0.2s;
+    }
+    input:checked + .slider { background: #e74c3c; }
+    input:checked + .slider:before { transform: translateX(20px); }
+
+    .divider { border: none; border-top: 1px solid #2a2a4a; }
+
+    #validation-status {
+      font-size: 13px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      background: #0f2a1a;
+      color: #2ecc71;
+    }
+    #validation-status.error { background: #2a0f0f; color: #e74c3c; }
+
+    #label-count-row { font-size: 13px; color: #aaa; }
+
+    #label-list { display: flex; flex-direction: column; gap: 6px; }
+    .label-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #0f1a2e;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .label-badge {
+      width: 22px; height: 22px;
+      background: #e74c3c;
+      border-radius: 50%;
+      color: white;
+      font-weight: bold;
+      font-size: 12px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .label-coords { color: #888; font-size: 12px; margin-left: 8px; flex: 1; }
+    .label-delete {
+      background: none; border: none; color: #e74c3c;
+      cursor: pointer; font-size: 16px; line-height: 1; padding: 2px 4px;
+    }
+    .label-delete:hover { color: #ff6b6b; }
+
+    #drop-hint {
+      color: #444;
+      font-size: 15px;
+      text-align: center;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+<div id="canvas-container">
+  <div id="drop-hint">上传图片后开始标注</div>
+  <canvas id="main-canvas"></canvas>
+</div>
+
+<div id="panel">
+  <div class="panel-title">物品计数标注</div>
+
+  <button class="btn btn-primary" id="btn-upload" onclick="document.getElementById('file-input').click()">📂 上传图片</button>
+  <input type="file" id="file-input" accept="image/*" style="display:none">
+
+  <button class="btn btn-success" id="btn-detect" disabled>🔍 自动识别</button>
+
+  <div class="toggle-row">
+    <span>✏️ 手动模式</span>
+    <label class="toggle">
+      <input type="checkbox" id="toggle-manual" disabled>
+      <span class="slider"></span>
+    </label>
+  </div>
+
+  <button class="btn btn-danger" id="btn-clear" disabled>🗑 清除全部标注</button>
+  <button class="btn btn-secondary" id="btn-export" disabled>💾 导出图片</button>
+
+  <hr class="divider">
+
+  <div id="validation-status">尚未标注</div>
+  <div id="label-count-row">共 <span id="label-count">0</span> 个标注</div>
+
+  <hr class="divider">
+
+  <div id="label-list"></div>
+</div>
+
+<script>
+// JS 逻辑将在后续 Task 中追加到此处
+</script>
+</body>
+</html>
