@@ -1,7 +1,8 @@
 import cv2
+from typing import Optional
 
 
-def detect_items(image_path: str, min_area: int = 500, max_area: int = None) -> list:
+def detect_items(image_path: str, min_area: int = 500, max_area: Optional[int] = None) -> list:
     img = cv2.imread(image_path)
     if img is None:
         raise ValueError(f"Cannot read image: {image_path}")
