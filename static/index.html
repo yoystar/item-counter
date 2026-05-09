@@ -189,6 +189,7 @@ document.getElementById('file-input').addEventListener('change', async (e) => {
   }
   const data = await resp.json();
   loadImageToCanvas(data.image_url, data.image_path, data.width, data.height);
+  e.target.value = '';
 });
 
 function loadImageToCanvas(imageUrl, imagePath, origW, origH) {
@@ -219,12 +220,12 @@ function loadImageToCanvas(imageUrl, imagePath, origW, origH) {
     canvas.add(img);
     canvas.sendToBack(img);
     canvas.renderAll();
-  });
 
-  document.getElementById('btn-detect').disabled = false;
-  document.getElementById('toggle-manual').disabled = false;
-  document.getElementById('btn-clear').disabled = false;
-  document.getElementById('btn-export').disabled = false;
+    document.getElementById('btn-detect').disabled = false;
+    document.getElementById('toggle-manual').disabled = false;
+    document.getElementById('btn-clear').disabled = false;
+    document.getElementById('btn-export').disabled = false;
+  });
 }
 
 // ── 标注圆形半径（自适应原图尺寸）────────────────────────
@@ -249,7 +250,7 @@ function addLabel(canvasX, canvasY) {
   const group = new fabric.Group([circle, text], {
     left: canvasX, top: canvasY,
     originX: 'center', originY: 'center',
-    selectable: false, evented: false,
+    selectable: false, evented: true,
   });
 
   canvas.add(group);
