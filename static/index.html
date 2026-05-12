@@ -311,6 +311,18 @@
     }
     .ctx-item:hover { background: var(--accent-dim); color: var(--accent); }
 
+    /* ── Toast 提示 ─────────────────────────────────────── */
+    #toast {
+      position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+      background: var(--bg); border: 1px solid var(--accent-border);
+      color: var(--accent); padding: 8px 18px;
+      font-family: var(--font); font-size: 11px;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      pointer-events: none; opacity: 0;
+      transition: opacity 0.25s; z-index: 99999;
+    }
+    #toast.visible { opacity: 1; }
+
     /* ── 主题切换按钮 ──────────────────────────────────── */
     #btn-theme {
       background: none;
@@ -345,6 +357,7 @@
 <div id="ctx-menu">
   <div class="ctx-item" id="ctx-paste">⌘ 粘贴图片</div>
 </div>
+<div id="toast"></div>
 
 <div id="panel">
   <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -1215,22 +1228,34 @@ document.addEventListener('contextmenu', (e) => {
   if (!e.target.closest('#canvas-container')) ctxMenu.classList.remove('visible');
 });
 
+let _toastTimer = null;
+function showToast(msg, duration = 2500) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('visible');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => toast.classList.remove('visible'), duration);
+}
+
 document.getElementById('ctx-paste').addEventListener('click', async () => {
   ctxMenu.classList.remove('visible');
-  try {
-    const items = await navigator.clipboard.read();
-    for (const item of items) {
-      const type = item.types.find(t => t.startsWith('image/'));
-      if (type) {
-        const blob = await item.getType(type);
-        const ext = type.split('/')[1];
-        await uploadFile(new File([blob], `paste.${ext}`, { type }));
-        break;
+  // HTTPS 环境下尝试主动读取剪贴板
+  if (window.isSecureContext && navigator.clipboard?.read) {
+    try {
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        const type = item.types.find(t => t.startsWith('image/'));
+        if (type) {
+          const blob = await item.getType(type);
+          const ext = type.split('/')[1];
+          await uploadFile(new File([blob], `paste.${ext}`, { type }));
+          return;
+        }
       }
-    }
-  } catch {
-    alert('无法读取剪贴板，请使用 Ctrl+V 粘贴');
+    } catch { /* 权限被拒绝，降级处理 */ }
   }
+  // HTTP 环境或权限不足：提示用户按 Ctrl+V，全局 paste 监听会自动处理
+  showToast('请按 Ctrl+V 粘贴图片');
 });
 
 // ── 主题切换 ──────────────────────────────────────────────
