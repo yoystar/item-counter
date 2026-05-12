@@ -72,24 +72,24 @@ pytest -v
 
 ```bash
 # 构建并在本地启动
-docker compose up --build
+docker-compose up --build
 
 # 后台运行
-docker compose up --build -d
+docker-compose up --build -d
 
 # 访问 http://localhost:5000
 
 # 查看日志
-docker compose logs -f
+docker-compose logs -f
 
 # 停止
-docker compose down
+docker-compose down
 ```
 
 默认对外端口为 `5000`，可通过环境变量修改：
 
 ```bash
-APP_PORT=9000 docker compose up -d
+APP_PORT=9000 docker-compose up -d
 ```
 
 ---
@@ -109,11 +109,11 @@ git clone <仓库地址> /docker/item-counter
 cd /docker/item-counter
 
 # 3. 启动服务
-docker compose up --build -d
+docker-compose up --build -d
 
 # 4. 查看运行状态
-docker compose ps
-docker compose logs -f
+docker-compose ps
+docker-compose logs -f
 ```
 
 #### 方式二：本地打包后传输
@@ -143,7 +143,7 @@ docker load < item-counter.tar.gz
 
 # 5. 修改 docker-compose.yml，将 build: . 替换为 image: item-counter:latest
 # 或直接指定镜像名启动
-docker compose up -d
+docker-compose up -d
 ```
 
 ---
@@ -165,22 +165,22 @@ docker compose up -d
 
 ```bash
 # 查看容器状态
-docker compose ps
+docker-compose ps
 
 # 实时查看日志（含 access log）
-docker compose logs -f
+docker-compose logs -f
 
 # 重启服务（不重新构建）
-docker compose restart
+docker-compose restart
 
 # 更新代码后重新构建并重启
-docker compose up --build -d
+docker-compose up --build -d
 
 # 查看 uploads 卷占用
 docker volume inspect item-counter_uploads
 
 # 进入容器排查问题
-docker compose exec app sh
+docker-compose exec app sh
 ```
 
 ---
