@@ -1174,6 +1174,14 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+// ── Ctrl+V 粘贴图片 ───────────────────────────────────────
+document.addEventListener('paste', async (e) => {
+  const item = [...e.clipboardData.items].find(i => i.type.startsWith('image/'));
+  if (!item) return;
+  e.preventDefault();
+  await uploadFile(item.getAsFile());
+});
+
 // ── 主题切换 ──────────────────────────────────────────────
 (function () {
   const root = document.documentElement;
