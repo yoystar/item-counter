@@ -286,6 +286,16 @@
     #canvas-container > canvas,
     #canvas-container > #drop-hint { position: relative; z-index: 1; }
 
+    #canvas-container.drag-over::after {
+      content: ''; position: absolute; inset: 0; z-index: 10;
+      border: 2px dashed var(--accent);
+      background: rgba(248,224,199,0.06);
+      pointer-events: none;
+    }
+    [data-theme="light"] #canvas-container.drag-over::after {
+      background: rgba(0,83,253,0.06);
+    }
+
     /* ── 主题切换按钮 ──────────────────────────────────── */
     #btn-theme {
       background: none;
@@ -429,21 +439,31 @@ function openFilePicker() { document.getElementById('file-input').click(); }
 document.getElementById('btn-upload').addEventListener('click', openFilePicker);
 document.getElementById('drop-hint').addEventListener('click', openFilePicker);
 
+async function uploadFile(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  const resp = await fetch('/upload', { method: 'POST', body: formData });
+  if (!resp.ok) { alert('上传失败：' + (await resp.json()).error); return; }
+  const data = await resp.json();
+  loadImageToCanvas(data.image_url, data.image_path, data.width, data.height);
+}
+
 document.getElementById('file-input').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
-
-  const formData = new FormData();
-  formData.append('file', file);
-
-  const resp = await fetch('/upload', { method: 'POST', body: formData });
-  if (!resp.ok) {
-    alert('上传失败：' + (await resp.json()).error);
-    return;
-  }
-  const data = await resp.json();
-  loadImageToCanvas(data.image_url, data.image_path, data.width, data.height);
+  await uploadFile(file);
   e.target.value = '';
+});
+
+const canvasContainer = document.getElementById('canvas-container');
+canvasContainer.addEventListener('dragover',  (e) => { e.preventDefault(); canvasContainer.classList.add('drag-over'); });
+canvasContainer.addEventListener('dragenter', (e) => { e.preventDefault(); canvasContainer.classList.add('drag-over'); });
+canvasContainer.addEventListener('dragleave', (e) => { if (!canvasContainer.contains(e.relatedTarget)) canvasContainer.classList.remove('drag-over'); });
+canvasContainer.addEventListener('drop', async (e) => {
+  e.preventDefault();
+  canvasContainer.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) await uploadFile(file);
 });
 
 function loadImageToCanvas(imageUrl, imagePath, origW, origH) {
