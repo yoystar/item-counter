@@ -1221,7 +1221,12 @@ document.getElementById('ctx-paste').addEventListener('click', async () => {
     const items = await navigator.clipboard.read();
     for (const item of items) {
       const type = item.types.find(t => t.startsWith('image/'));
-      if (type) { await uploadFile(await item.getType(type)); break; }
+      if (type) {
+        const blob = await item.getType(type);
+        const ext = type.split('/')[1];
+        await uploadFile(new File([blob], `paste.${ext}`, { type }));
+        break;
+      }
     }
   } catch {
     alert('无法读取剪贴板，请使用 Ctrl+V 粘贴');
