@@ -1,6 +1,7 @@
 # app.py
 import os
 import uuid
+import time
 from flask import Flask, request, jsonify, send_from_directory
 from PIL import Image, ImageDraw, ImageFont
 import io
@@ -8,9 +9,12 @@ import io
 from detector import detect_items, match_template_items
 
 app = Flask(__name__, static_folder='static', static_url_path='')
+app.config['MAX_CONTENT_LENGTH'] = 128 * 1024 * 1024  # 128 MB 单次上传上限
 
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'}
+MAX_UPLOADS = 100   # uploads 目录最多保留文件数
+MAX_AGE_DAYS = 30   # 超过此天数的文件在下次上传时被清理
 
 
 def allowed_file(filename):
@@ -21,6 +25,37 @@ def is_safe_path(image_path: str) -> bool:
     abs_upload = os.path.abspath(UPLOAD_FOLDER)
     abs_image = os.path.abspath(image_path)
     return abs_image.startswith(abs_upload + os.sep)
+
+
+def cleanup_uploads():
+    """清理 uploads 目录：先删超过 MAX_AGE_DAYS 天的文件，再删最旧的直到剩 MAX_UPLOADS-1 张。"""
+    if not os.path.isdir(UPLOAD_FOLDER):
+        return
+    cutoff = time.time() - MAX_AGE_DAYS * 86400
+
+    files = []
+    for fname in os.listdir(UPLOAD_FOLDER):
+        path = os.path.join(UPLOAD_FOLDER, fname)
+        if os.path.isfile(path):
+            files.append((os.path.getmtime(path), path))
+
+    remaining = []
+    for mtime, path in files:
+        if mtime < cutoff:
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+        else:
+            remaining.append((mtime, path))
+
+    # 按修改时间升序，超出上限时从最旧的开始删，保留 MAX_UPLOADS-1 张给新文件留位
+    remaining.sort()
+    for _, path in remaining[:max(0, len(remaining) - MAX_UPLOADS + 1)]:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
 
 
 @app.route('/')
@@ -35,6 +70,7 @@ def uploaded_file(filename):
 
 @app.route('/upload', methods=['POST'])
 def upload():
+    cleanup_uploads()
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
     file = request.files['file']
@@ -47,8 +83,14 @@ def upload():
     save_path = os.path.join(UPLOAD_FOLDER, filename)
     file.save(save_path)
 
-    with Image.open(save_path) as img:
-        width, height = img.size
+    try:
+        with Image.open(save_path) as img:
+            img.verify()
+        with Image.open(save_path) as img:
+            width, height = img.size
+    except Exception:
+        os.remove(save_path)
+        return jsonify({'error': 'Invalid image file'}), 400
 
     return jsonify({
         'image_url': f'/uploads/{filename}',
@@ -170,4 +212,7 @@ def export():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    host = os.environ.get('HOST', '127.0.0.1')
+    port = int(os.environ.get('PORT', 5000))
+    debug = os.environ.get('FLASK_DEBUG', '0') == '1'
+    app.run(host=host, port=port, debug=debug)
