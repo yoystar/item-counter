@@ -153,9 +153,10 @@
     #drop-hint {
       color: rgba(255,255,255,0.35);
       font-size: 15px; text-align: center;
-      pointer-events: none;
+      pointer-events: auto; cursor: pointer;
       text-transform: uppercase; letter-spacing: 0.14em;
     }
+    #drop-hint:hover { color: rgba(255,255,255,0.6); }
 
     details summary {
       cursor: pointer; user-select: none;
@@ -223,6 +224,7 @@
     [data-theme="light"] ::-webkit-scrollbar-thumb { background: rgba(0,83,253,0.2); }
     [data-theme="light"] .label-item { background: rgba(10,28,40,0.03); border-color: rgba(10,28,40,0.08); }
     [data-theme="light"] #drop-hint  { color: rgba(10,28,40,0.45); }
+    [data-theme="light"] #drop-hint:hover { color: rgba(10,28,40,0.75); }
     [data-theme="light"] #validation-status       { border-color: rgba(22,101,52,0.22);  background: rgba(22,101,52,0.05);  color: var(--success); }
     [data-theme="light"] #validation-status.error { border-color: rgba(153,27,27,0.22); background: rgba(153,27,27,0.05); color: var(--danger); }
     [data-theme="light"] #btn-theme { color: var(--text-dim); border-color: var(--border); }
@@ -311,7 +313,7 @@
 <body>
 
 <div id="canvas-container">
-  <div id="drop-hint">&gt; 上传图片后开始标注 <span class="mlog-cursor">▋</span></div>
+  <div id="drop-hint" onclick="document.getElementById('file-input').click()">&gt; 上传图片后开始标注 <span class="mlog-cursor">▋</span></div>
   <canvas id="main-canvas"></canvas>
   <div id="match-overlay"><div id="match-log"></div></div>
 </div>
