@@ -4,8 +4,5 @@ services:
     ports:
       - "${APP_PORT:-5000}:5000"
     volumes:
-      - uploads:/app/uploads
+      - /docker/item-counter/uploads:/app/uploads
     restart: unless-stopped
-
-volumes:
-  uploads:
