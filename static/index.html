@@ -166,7 +166,7 @@
       list-style: none;
     }
     details summary::-webkit-details-marker { display: none; }
-    details summary::before { content: '▸ '; font-size: 9px; }
+    details summary::before { content: '▸ '; font-size: 13px; }
     details[open] summary::before { content: '▾ '; }
 
     input[type="range"] {
@@ -313,7 +313,7 @@
 <body>
 
 <div id="canvas-container">
-  <div id="drop-hint" onclick="document.getElementById('file-input').click()">&gt; 上传图片后开始标注 <span class="mlog-cursor">▋</span></div>
+  <div id="drop-hint">> 上传图片后开始标注 <span class="mlog-cursor">▋</span></div>
   <canvas id="main-canvas"></canvas>
   <div id="match-overlay"><div id="match-log"></div></div>
 </div>
@@ -324,7 +324,7 @@
     <button id="btn-theme" title="切换主题">◑</button>
   </div>
 
-  <button class="btn btn-primary" id="btn-upload" onclick="document.getElementById('file-input').click()">+ 上传图片</button>
+  <button class="btn btn-primary" id="btn-upload">+ 上传图片</button>
   <input type="file" id="file-input" accept="image/*" style="display:none">
 
   <hr class="divider">
@@ -425,6 +425,10 @@ const canvas = new fabric.Canvas('main-canvas', {
 });
 
 // ── 图片上传 ──────────────────────────────────────────────
+function openFilePicker() { document.getElementById('file-input').click(); }
+document.getElementById('btn-upload').addEventListener('click', openFilePicker);
+document.getElementById('drop-hint').addEventListener('click', openFilePicker);
+
 document.getElementById('file-input').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
